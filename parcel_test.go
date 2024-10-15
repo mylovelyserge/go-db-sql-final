@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,7 +31,7 @@ func getTestParcel() Parcel {
 
 // TestAddGetDelete проверяет добавление, получение и удаление посылки
 func TestAddGetDelete(t *testing.T) {
-	db, err := sql.Open("sqlite3", "tracker.db")
+	db, err := sql.Open("sqlite", "tracker.db")
 	require.NoError(t, err)
 	defer db.Close()
 
@@ -53,13 +54,15 @@ func TestAddGetDelete(t *testing.T) {
 	err = store.Delete(id)
 	require.NoError(t, err)
 
+	// Try to Get deleted parcel
 	_, err = store.Get(id)
 	require.Error(t, err)
+	assert.EqualError(t, err, "no parcel found with the given number")
 }
 
 // TestSetAddress проверяет обновление адреса
 func TestSetAddress(t *testing.T) {
-	db, err := sql.Open("your_driver", "your_connection_string")
+	db, err := sql.Open("sqlite", "tracker.db")
 	require.NoError(t, err)
 	defer db.Close()
 
@@ -69,6 +72,7 @@ func TestSetAddress(t *testing.T) {
 	// Add
 	id, err := store.Add(parcel)
 	require.NoError(t, err)
+	parcel.Number = id
 
 	// Set Address
 	newAddress := "new test address"
@@ -78,12 +82,14 @@ func TestSetAddress(t *testing.T) {
 	// Check
 	storedParcel, err := store.Get(id)
 	require.NoError(t, err)
-	require.Equal(t, newAddress, storedParcel.Address)
+	parcel.Address = newAddress
+
+	assert.Equal(t, parcel, storedParcel)
 }
 
 // TestSetStatus проверяет обновление статуса
 func TestSetStatus(t *testing.T) {
-	db, err := sql.Open("your_driver", "your_connection_string")
+	db, err := sql.Open("sqlite", "tracker.db")
 	require.NoError(t, err)
 	defer db.Close()
 
@@ -95,19 +101,19 @@ func TestSetStatus(t *testing.T) {
 	require.NoError(t, err)
 
 	// Set Status
-	newStatus := "Delivered"
+	newStatus := ParcelStatusDelivered
 	err = store.SetStatus(id, newStatus)
 	require.NoError(t, err)
 
 	// Check
 	storedParcel, err := store.Get(id)
 	require.NoError(t, err)
-	require.Equal(t, newStatus, storedParcel.Status)
+	assert.Equal(t, newStatus, storedParcel.Status)
 }
 
 // TestGetByClient проверяет получение посылок по идентификатору клиента
 func TestGetByClient(t *testing.T) {
-	db, err := sql.Open("your_driver", "your_connection_string")
+	db, err := sql.Open("sqlite", "tracker.db")
 	require.NoError(t, err)
 	defer db.Close()
 
@@ -118,7 +124,6 @@ func TestGetByClient(t *testing.T) {
 		getTestParcel(),
 		getTestParcel(),
 	}
-	parcelMap := map[int]Parcel{}
 
 	client := randRange.Intn(10_000_000)
 	for i := range parcels {
@@ -130,20 +135,13 @@ func TestGetByClient(t *testing.T) {
 		id, err := store.Add(parcels[i])
 		require.NoError(t, err)
 		parcels[i].Number = id
-		parcelMap[id] = parcels[i]
 	}
 
 	// Get by Client
 	storedParcels, err := store.GetByClient(client)
 	require.NoError(t, err)
-	require.Len(t, storedParcels, len(parcels))
+	assert.Len(t, storedParcels, len(parcels))
 
 	// Check
-	for _, parcel := range storedParcels {
-		expected, exists := parcelMap[parcel.Number]
-		require.True(t, exists)
-		require.Equal(t, expected.Client, parcel.Client)
-		require.Equal(t, expected.Status, parcel.Status)
-		require.Equal(t, expected.Address, parcel.Address)
-	}
+	assert.ElementsMatch(t, parcels, storedParcels)
 }
